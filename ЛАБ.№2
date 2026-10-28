@@ -1,0 +1,54 @@
+#include <math.h>
+
+const int PIN_NTC = A0, PIN_FLAME_PWR = 3, PIN_FLAME_IN = 7, PIN_TEMP_OUT = 8;
+const int RGB[] = {13, 12, 11}; // R, G, B
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(PIN_FLAME_PWR, OUTPUT);
+  digitalWrite(PIN_FLAME_PWR, HIGH); // Живлення давача полум'я
+  pinMode(PIN_FLAME_IN, INPUT);
+  pinMode(PIN_TEMP_OUT, OUTPUT);
+  for (int i = 0; i < 3; i++) pinMode(RGB[i], OUTPUT);
+}
+
+float getTemp() {
+  long adc = 0;
+  for (int i = 0; i < 20; i++) { adc += analogRead(PIN_NTC); delayMicroseconds(200); }
+  float v = adc / 20.0;
+  if (v < 1) v = 1; else if (v > 1022) v = 1022;
+  float r = 10000.0 * (v / (1023.0 - v));
+  return (1.0 / ((1.0 / 298.15) + (1.0 / 3950.0) * log(r / 4700.0))) - 273.15;
+}
+
+void setColor(bool r, bool g, bool b) {
+  digitalWrite(RGB[0], r); digitalWrite(RGB[1], g); digitalWrite(RGB[2], b);
+}
+
+void showOrange(int ms) {
+  unsigned long start = millis();
+  while (millis() - start < (unsigned long)ms) {
+    digitalWrite(RGB[0], HIGH); digitalWrite(RGB[1], HIGH); delayMicroseconds(400);
+    digitalWrite(RGB[1], LOW); delayMicroseconds(1600);
+  }
+  digitalWrite(RGB[0], LOW);
+}
+
+void loop() {
+  float temp = getTemp();
+  bool flame = digitalRead(PIN_FLAME_IN);
+  digitalWrite(PIN_TEMP_OUT, temp >= 35.0 ? HIGH : LOW);
+
+  Serial.print("Температура: "); Serial.print(temp, 1); Serial.print(" °C | ");
+
+  if (flame || temp > 50.0) {
+    Serial.println("НЕБЕЗПЕКА (Червоний)");
+    setColor(1, 0, 0); delay(450); setColor(0, 0, 0); delay(450);
+  } else if (temp >= 35.0) {
+    Serial.println("ПОПЕРЕДЖЕННЯ (Помаранчевий)");
+    showOrange(450); setColor(0, 0, 0); delay(450);
+  } else {
+    Serial.println("БЕЗПЕКА (Білий)");
+    setColor(1, 1, 1); delay(450); setColor(0, 0, 0); delay(450);
+  }
+}
